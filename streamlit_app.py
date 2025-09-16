@@ -98,12 +98,16 @@ class LegalAIApp:
             with st.spinner("Loading model... This may take a few minutes."):
                 if model_path:
                     full_path = os.path.join(MODELS_DIR, model_path)
+                    st.info(f"Loading model from: {full_path}")
                 else:
                     full_path = None
+                    st.info("Loading base model...")
                 
+                # Load new model
                 self.qa_system = LegalQuestionAnswerer(full_path)
                 self.qa_system.load()
                 
+                # Update session state
                 st.session_state.model_loaded = True
                 st.session_state.current_model_path = model_path
                 
@@ -112,6 +116,11 @@ class LegalAIApp:
                 
         except Exception as e:
             st.error(f"❌ Error loading model: {str(e)}")
+            st.error(f"Model path: {model_path}")
+            st.error(f"Full path: {os.path.join(MODELS_DIR, model_path) if model_path else 'None'}")
+            # Reset session state on error
+            st.session_state.model_loaded = False
+            st.session_state.current_model_path = None
             return False
     
     def sidebar(self):
@@ -122,11 +131,19 @@ class LegalAIApp:
         st.sidebar.subheader("Model Selection")
         available_models = self.get_available_models()
         
+        
         if available_models:
+            # Prefer merged model if available
+            merged_models = [m for m in available_models if m.startswith("legal_qwen_merged")]
+            if merged_models:
+                default_model = merged_models[0]
+            else:
+                default_model = available_models[0]
+            
             selected_model = st.sidebar.selectbox(
                 "Choose a model:",
                 options=[""] + available_models,
-                index=0
+                index=available_models.index(default_model) + 1 if default_model in available_models else 0
             )
             
             if selected_model and selected_model != st.session_state.current_model_path:
@@ -144,6 +161,14 @@ class LegalAIApp:
             st.sidebar.info(f"Current model: {st.session_state.current_model_path or 'Base model'}")
         else:
             st.sidebar.error("❌ No model loaded")
+        
+        # Debug information
+        if st.sidebar.checkbox("Show Debug Info"):
+            st.sidebar.write("**Debug Information:**")
+            st.sidebar.write(f"Session state model_loaded: {st.session_state.model_loaded}")
+            st.sidebar.write(f"Current model path: {st.session_state.current_model_path}")
+            st.sidebar.write(f"QA system exists: {self.qa_system is not None}")
+            st.sidebar.write(f"Available models: {available_models}")
         
         # Chat controls
         st.sidebar.subheader("Chat Controls")
@@ -213,6 +238,9 @@ class LegalAIApp:
             # Generate response
             with st.spinner("🤔 Thinking..."):
                 try:
+                    if self.qa_system is None:
+                        raise Exception("No model loaded. Please load a model first.")
+                    
                     result = self.qa_system.answer(user_question)
                     response = result["answer"]
                     

@@ -8,7 +8,7 @@ from typing import Optional
 @dataclass
 class ModelConfig:
     """Model configuration settings."""
-    base_model_name: str = "Qwen/Qwen2.5-0.5B-Instruct"  # Using smaller model for 4GB GPU
+    base_model_name: str = "Qwen/Qwen2.5-1.5B-Instruct"  # Using smaller model for 4GB GPU
     max_length: int = 512
     temperature: float = 0.7
     top_p: float = 0.9
