@@ -5,7 +5,6 @@ A practical pipeline to fine-tune Qwen models on Indian legal Q&A using LoRA, ru
 ## Project Structure
 
 ```
-.
 ├─ data/                         # JSONL datasets (formatted + splits)
 ├─ logs/                         # Evaluation reports and summaries
 ├─ models/                       # Checkpoints and merged models
@@ -14,11 +13,11 @@ A practical pipeline to fine-tune Qwen models on Indian legal Q&A using LoRA, ru
 ├─ inference_engine.py           # Inference and Q&A wrapper
 ├─ evaluator.py                  # Evaluation suite and report writer
 ├─ legal_knowledge_base.py       # IPC facts fallback
-├─ model_checker.py              # Scan/load/test best available model
 ├─ quick_test.py                 # Minimal smoke test for loading + QA
+├─ console_QA.py                 # Simple CLI for interactive Q&A
 ├─ streamlit_app.py              # Web UI (chat, training, evaluation)
 ├─ project_structure.py          # Configs and directory paths
-├─ main_script.py                # CLI entrypoint for full pipeline
+├─ Pipeline.py                   # CLI entrypoint for full pipeline
 └─ README.md                     # This file
 ```
 
@@ -55,36 +54,36 @@ Adjust these before running for custom behavior.
 
 - Run the full pipeline (prepare data → train → merge → evaluate → interactive chat):
 ```bash
-python main_script.py --mode full --eval_samples 10
+python Pipeline.py --mode full --eval_samples 10
 ```
 
 - Launch the Streamlit UI:
 ```bash
-python main_script.py --mode ui
+python Pipeline.py --mode ui
 # or directly
 streamlit run streamlit_app.py
 ```
 
-## CLI Usage (main_script.py)
+## CLI Usage (Pipeline.py)
 
 ```bash
 # Data preparation (HuggingFace by default)
-python main_script.py --mode data --data_source huggingface
+python Pipeline.py --mode data --data_source huggingface
 
 # Or use your own CSV located at data/legal_data.csv
-python main_script.py --mode data --data_source csv
+python Pipeline.py --mode data --data_source csv
 
 # Train with LoRA (uses config in project_structure.py)
-python main_script.py --mode train --data_source huggingface
+python Pipeline.py --mode train --data_source huggingface
 
 # Evaluate a model
-python main_script.py --mode evaluate --model_path models/legal_qwen_merged --eval_samples 20
+python Pipeline.py --mode evaluate --model_path models/legal_qwen_merged --eval_samples 20
 
 # Inference: interactive chat
-python main_script.py --mode inference --interactive --model_path models/legal_qwen_merged
+python Pipeline.py --mode inference --interactive --model_path models/legal_qwen_merged
 
 # Inference: single question
-python main_script.py --mode inference --question "What is Section 302 of IPC?" --model_path models/legal_qwen_merged
+python Pipeline.py --mode inference --question "What is Section 302 of IPC?" --model_path models/legal_qwen_merged
 ```
 
 Notes:
@@ -154,12 +153,7 @@ streamlit run streamlit_app.py
 
 ## Utilities
 
-- `model_checker.py`: scan `models/`, pick best candidate, load, smoke-test, and optionally enter interactive Q&A
-```bash
-python model_checker.py            # full check
-python model_checker.py -l         # list only
-python model_checker.py -i         # include interactive test
-```
+- `console_QA.py`: simple terminal chat using the latest model under `models/`
 - `quick_test.py`: minimal load + single QA demonstration
 
 ## Troubleshooting
