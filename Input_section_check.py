@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Test script for IPC Section 375 specifically."""
+input_ipc = input("Enter the IPC section you want to test: ")
 
 from inference_engine import LegalQuestionAnswerer
 import os
 from project_structure import MODELS_DIR
-
+from ui_utils import toast, loading
 def test_ipc_375():
-    print("Testing IPC Section 375 with improved generation...")
+    print(f"Testing IPC Section {input_ipc} with improved generation...")
     print("=" * 50)
     
     # Use the merged model
@@ -14,17 +15,18 @@ def test_ipc_375():
     print(f"Loading model from: {model_path}")
     
     try:
-        qa_system = LegalQuestionAnswerer(model_path)
-        qa_system.load()
-        print("✅ Model loaded successfully!")
+        with loading("Loading model..."):
+            qa_system = LegalQuestionAnswerer(model_path)
+            qa_system.load()
+        toast("Model loaded successfully", type="success")
         
         # Test different ways of asking about IPC 375
         questions = [
-            "What is IPC Section 375?",
-            "IPC Section 375",
-            "Section 375 of Indian Penal Code",
-            "What does Section 375 of IPC deal with?",
-            "Explain IPC 375"
+            f"What is IPC Section {input_ipc}?",
+            f"IPC Section {input_ipc}",
+            f"Section {input_ipc} of Indian Penal Code",
+            f"What does Section {input_ipc} of IPC deal with?",
+            f"Explain IPC {input_ipc}"
         ]
         
         for i, question in enumerate(questions, 1):
@@ -32,7 +34,8 @@ def test_ipc_375():
             print(f"Question: {question}")
             
             try:
-                result = qa_system.answer(question)
+                with loading("Thinking..."):
+                    result = qa_system.answer(question)
                 answer = result["answer"]
                 print(f"Answer: {answer}")
                 
@@ -43,10 +46,11 @@ def test_ipc_375():
                     print("❌ Answer doesn't mention rape")
                     
             except Exception as e:
-                print(f"❌ Error: {e}")
+                toast(f"Error: {e}", type="error")
                 
     except Exception as e:
-        print(f"❌ Error loading model: {e}")
+        toast(f"Error loading model: {e}", type="error")
 
 if __name__ == "__main__":
     test_ipc_375()
+    

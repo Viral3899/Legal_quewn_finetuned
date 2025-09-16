@@ -5,6 +5,7 @@ import os
 import sys
 from project_structure import MODELS_DIR
 from inference_engine import LegalQuestionAnswerer
+from ui_utils import toast, loading
 
 def main():
     print("Legal AI Assistant - Command Line Test")
@@ -29,10 +30,10 @@ def main():
     
     try:
         # Initialize the Q&A system
-        print("\n🔄 Loading model... (this may take a few minutes)")
-        qa_system = LegalQuestionAnswerer(model_path)
-        qa_system.load()
-        print("✅ Model loaded successfully!")
+        with loading("Loading model... (this may take a few minutes)"):
+            qa_system = LegalQuestionAnswerer(model_path)
+            qa_system.load()
+        toast("Model loaded successfully", type="success")
         
         # Interactive Q&A loop
         print("\n" + "=" * 50)
@@ -50,14 +51,14 @@ def main():
                 continue
             
             try:
-                print("🤔 Thinking...")
-                result = qa_system.answer(question)
+                with loading("Thinking..."):
+                    result = qa_system.answer(question)
                 print(f"\n⚖️  Answer: {result['answer']}")
             except Exception as e:
-                print(f"❌ Error: {str(e)}")
+                toast(f"Error: {str(e)}", type="error")
     
     except Exception as e:
-        print(f"❌ Error loading model: {str(e)}")
+        toast(f"Error loading model: {str(e)}", type="error")
         return
 
 if __name__ == "__main__":

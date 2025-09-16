@@ -3,7 +3,8 @@
 
 import torch
 import os
-from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig, AutoConfig
+from safetensors.torch import load_file as load_safetensors
 import logging
 from typing import List, Dict, Optional
 from project_structure import MODEL_CONFIG, MODELS_DIR
@@ -55,13 +56,16 @@ class LegalLMInference:
                 self.model = AutoModelForCausalLM.from_pretrained(
                     base_model_name,
                     torch_dtype=torch.float32,
-                    device_map="cpu",
                     trust_remote_code=True,
-                    low_cpu_mem_usage=True
+                    low_cpu_mem_usage=False,
+                    device_map=None,
+                    attn_implementation="eager"
                 )
                 
                 # Load LoRA adapter
                 self.model = PeftModel.from_pretrained(self.model, self.model_path)
+                # Ensure model is on CPU
+                self.model.to(self.device)
                 
                 # Load tokenizer from the adapter directory
                 self.tokenizer = AutoTokenizer.from_pretrained(
@@ -79,19 +83,53 @@ class LegalLMInference:
                     padding_side="left"
                 )
                 
-                # Load model with CPU-only configuration
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    self.model_path,
-                    torch_dtype=torch.float32,  # Use float32 for CPU
-                    device_map="cpu",  # Force CPU usage
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True
-                )
+                # Try standard load first
+                try:
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        self.model_path,
+                        torch_dtype=torch.float32,  # Use float32 for CPU
+                        trust_remote_code=True,
+                        low_cpu_mem_usage=False,
+                        device_map=None,
+                        attn_implementation="eager"
+                    )
+                    self.model.to(self.device)
+                except Exception as load_err:
+                    logger.warning(f"Standard load failed ({load_err}). Falling back to safetensors manual load...")
+                    # Manual load via config + safetensors to avoid meta tensor path
+                    config = AutoConfig.from_pretrained(self.model_path, trust_remote_code=True)
+                    self.model = AutoModelForCausalLM.from_config(
+                        config,
+                        torch_dtype=torch.float32,
+                        attn_implementation="eager"
+                    )
+                    weights_path = os.path.join(self.model_path, "model.safetensors")
+                    if not os.path.exists(weights_path):
+                        raise FileNotFoundError(f"Weights file not found: {weights_path}")
+                    # Load weights on CPU first to avoid meta tensor copy issues
+                    state_dict = load_safetensors(weights_path, device="cpu")
+                    missing, unexpected = self.model.load_state_dict(state_dict, strict=False)
+                    if missing:
+                        logger.warning(f"Missing weights when loading: {missing[:10]}{'...' if len(missing) > 10 else ''}")
+                    if unexpected:
+                        logger.warning(f"Unexpected weights when loading: {unexpected[:10]}{'...' if len(unexpected) > 10 else ''}")
+                    # Move to target device after weights are materialized
+                    self.model.to(self.device)
             
             # Ensure pad token exists
             if self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
                 self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+            
+            # Ensure model embeddings match tokenizer size
+            try:
+                vocab_size = len(self.tokenizer)
+                if self.model.get_output_embeddings() is not None:
+                    current_vocab = self.model.get_output_embeddings().weight.size(0)
+                    if current_vocab != vocab_size:
+                        self.model.resize_token_embeddings(vocab_size)
+            except Exception as resize_err:
+                logger.warning(f"Could not verify/resize token embeddings: {resize_err}")
             
             # Setup generation config with more conservative settings
             self.generation_config = GenerationConfig(

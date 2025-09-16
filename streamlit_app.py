@@ -67,6 +67,9 @@ class LegalAIApp:
     def __init__(self):
         self.qa_system = None
         self.initialize_session_state()
+        # Restore qa_system from session_state if available
+        if st.session_state.get("qa_system") is not None:
+            self.qa_system = st.session_state.qa_system
     
     def initialize_session_state(self):
         """Initialize session state variables."""
@@ -78,6 +81,8 @@ class LegalAIApp:
             st.session_state.current_model_path = None
         if 'evaluation_results' not in st.session_state:
             st.session_state.evaluation_results = None
+        if 'qa_system' not in st.session_state:
+            st.session_state.qa_system = None
     
     def get_available_models(self) -> List[str]:
         """Get list of available models."""
@@ -110,6 +115,7 @@ class LegalAIApp:
                 # Update session state
                 st.session_state.model_loaded = True
                 st.session_state.current_model_path = model_path
+                st.session_state.qa_system = self.qa_system
                 
                 st.success("✅ Model loaded successfully!")
                 return True
@@ -121,6 +127,7 @@ class LegalAIApp:
             # Reset session state on error
             st.session_state.model_loaded = False
             st.session_state.current_model_path = None
+            st.session_state.qa_system = None
             return False
     
     def sidebar(self):
@@ -167,7 +174,8 @@ class LegalAIApp:
             st.sidebar.write("**Debug Information:**")
             st.sidebar.write(f"Session state model_loaded: {st.session_state.model_loaded}")
             st.sidebar.write(f"Current model path: {st.session_state.current_model_path}")
-            st.sidebar.write(f"QA system exists: {self.qa_system is not None}")
+            st.sidebar.write(f"QA system exists (instance): {self.qa_system is not None}")
+            st.sidebar.write(f"QA system in session: {st.session_state.qa_system is not None}")
             st.sidebar.write(f"Available models: {available_models}")
         
         # Chat controls
@@ -189,6 +197,20 @@ class LegalAIApp:
     def chat_interface(self):
         """Main chat interface."""
         st.markdown('<h1 class="main-header">⚖️ Legal AI Assistant</h1>', unsafe_allow_html=True)
+        
+        # If session says model is loaded but local instance is missing (due to rerun), rebuild it
+        if st.session_state.model_loaded and self.qa_system is None:
+            try:
+                rebuild_path = os.path.join(MODELS_DIR, st.session_state.current_model_path) if st.session_state.current_model_path else None
+                self.qa_system = LegalQuestionAnswerer(rebuild_path)
+                self.qa_system.load()
+                st.session_state.qa_system = self.qa_system
+            except Exception as e:
+                st.error(f"❌ Error reloading model: {str(e)}")
+                st.session_state.model_loaded = False
+                st.session_state.current_model_path = None
+                st.session_state.qa_system = None
+                return
         
         if not st.session_state.model_loaded:
             st.warning("⚠️ Please load a model from the sidebar to start chatting.")

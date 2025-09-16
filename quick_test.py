@@ -4,6 +4,7 @@
 import os
 import sys
 from project_structure import MODELS_DIR
+from ui_utils import toast, loading
 
 def test_model_loading():
     print("Testing model loading...")
@@ -23,9 +24,10 @@ def test_model_loading():
         model_path = os.path.join(MODELS_DIR, models[0])
         print(f"Loading model: {model_path}")
         
-        qa_system = LegalQuestionAnswerer(model_path)
-        qa_system.load()
-        print("✅ Model loaded successfully!")
+        with loading("Loading model..."):
+            qa_system = LegalQuestionAnswerer(model_path)
+            qa_system.load()
+        toast("Model loaded successfully", type="success")
         
         # Test question
         question = "What is IPC Section 302?"
@@ -34,7 +36,7 @@ def test_model_loading():
         print(f"A: {result['answer']}")
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        toast(f"Error: {e}", type="error")
         import traceback
         traceback.print_exc()
 

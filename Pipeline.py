@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 from typing import Optional
+from ui_utils import toast, loading
 
 # Import our modules
 from data_loader import DataLoader
@@ -29,34 +30,32 @@ class LegalLMPipeline:
     def prepare_data(self, source: str = "huggingface"):
         """Prepare data for training."""
         logger.info("Starting data preparation...")
-        
-        dataset_dict = self.data_loader.load_and_prepare_data(source=source)
-        
+        with loading("Preparing data..."):
+            dataset_dict = self.data_loader.load_and_prepare_data(source=source)
+        toast("Data preparation completed", type="success")
         logger.info("Data preparation completed successfully!")
         return dataset_dict
     
     def train_model(self, dataset_dict=None, source: str = "huggingface"):
         """Train the model."""
         logger.info("Starting model training...")
-        
         if dataset_dict is None:
             dataset_dict = self.prepare_data(source)
-        
-        # Train the model
-        model_path = self.fine_tuner.train(dataset_dict)
-        
-        # Merge and save the final model
-        merged_path = self.fine_tuner.merge_and_save_model(model_path)
-        
+        with loading("Training model..."):
+            model_path = self.fine_tuner.train(dataset_dict)
+        with loading("Merging and saving model..."):
+            merged_path = self.fine_tuner.merge_and_save_model(model_path)
+        toast(f"Training completed. Saved to: {merged_path}", type="success")
         logger.info(f"Model training completed! Final model saved to: {merged_path}")
         return merged_path
     
     def run_inference(self, model_path: Optional[str] = None, interactive: bool = True):
         """Run inference with the trained model."""
         logger.info("Starting inference...")
-        
-        self.qa_system = LegalQuestionAnswerer(model_path)
-        self.qa_system.load()
+        with loading("Loading inference engine..."):
+            self.qa_system = LegalQuestionAnswerer(model_path)
+            self.qa_system.load()
+        toast("Inference engine ready", type="success")
         
         if interactive:
             # Start interactive chat
@@ -78,7 +77,8 @@ class LegalLMPipeline:
                         continue
                     
                     print("\nGenerating response...")
-                    result = self.qa_system.answer(question)
+                    with loading("Thinking..."):
+                        result = self.qa_system.answer(question)
                     print(f"\nAnswer: {result['answer']}")
                     print("-"*60)
                     
@@ -86,16 +86,17 @@ class LegalLMPipeline:
                     print("\nGoodbye!")
                     break
                 except Exception as e:
-                    print(f"Error: {e}")
+                    toast(f"Error: {e}", type="error")
         
         return self.qa_system
     
     def evaluate_model(self, model_path: Optional[str] = None, num_samples: int = 10):
         """Evaluate the model performance."""
         logger.info("Starting model evaluation...")
-        
-        self.evaluator = LegalModelEvaluator(model_path)
-        results = self.evaluator.evaluate_model(num_samples)
+        with loading("Running evaluation..."):
+            self.evaluator = LegalModelEvaluator(model_path)
+            results = self.evaluator.evaluate_model(num_samples)
+        toast("Evaluation completed", type="success")
         
         # Print summary
         print("\n" + "="*60)
@@ -127,6 +128,7 @@ class LegalLMPipeline:
             self.run_inference(model_path, interactive=True)
             
         except Exception as e:
+            toast(f"Pipeline failed: {e}", type="error")
             logger.error(f"Pipeline failed: {e}")
             raise
 
@@ -212,6 +214,7 @@ def main():
     except KeyboardInterrupt:
         print("\nOperation cancelled by user.")
     except Exception as e:
+        toast(f"Error: {e}", type="error")
         logger.error(f"Error: {e}")
         sys.exit(1)
 
